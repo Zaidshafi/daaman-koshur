@@ -87,6 +87,10 @@ kbd { margin-left: 8px; color: #b9c8c0; font: 10px Arial; }
 .pronunciation { margin: 0 0 20px; color: var(--saffron); font: italic 15px/1.4 Georgia, serif; }
 .meaning { margin: 0; color: var(--muted); font-size: 13px; }
 .note { display: inline-block; margin-top: 18px; padding: 7px 10px; background: rgba(213,145,59,.12); color: #956023; font-size: 10px; letter-spacing: .05em; }
+.not-found { max-width: 360px; padding-top: 52px; }
+.not-found span { color: var(--saffron); font-size: 10px; font-weight: 700; letter-spacing: .16em; }
+.not-found h3 { margin: 15px 0 12px; font: 30px/1.1 Georgia, serif; }
+.not-found p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .result-actions { position: absolute; bottom: 34px; left: 38px; display: flex; gap: 9px; }
 .result-actions button { border: 1px solid #c9cdc3; background: rgba(255,255,255,.45); padding: 9px 12px; cursor: pointer; font-size: 11px; }
 

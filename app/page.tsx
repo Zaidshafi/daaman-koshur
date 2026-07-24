@@ -7,6 +7,7 @@ type Phrase = {
   english: string;
   kashmiri: string;
   latin: string;
+  aliases?: string[];
   note?: string;
   category: "Everyday" | "Affection" | "Family" | "Food";
 };
@@ -24,12 +25,23 @@ const phrases: Phrase[] = [
   { id: "home", english: "Welcome to our home.", kashmiri: "سونِس گَرِس منز خۄش آمدید۔", latin: "Sonis garis manz khosh aamdeed.", category: "Family" },
   { id: "family", english: "This is my family.", kashmiri: "یہِ چھُ میون خاندان۔", latin: "Yi chhu myon khaandaan.", category: "Family" },
   { id: "mother", english: "How is your mother?", kashmiri: "تُہنز موج کِتھ پٲٹھۍ چھِ؟", latin: "Tohanz maaj kith paeth chhi?", category: "Family" },
+  { id: "shy-mother", english: "Did you feel shy, mother?", kashmiri: "ژےٚ لَجیا، موج؟", latin: "Che lajiya, mouj?", aliases: ["che lajiya mouj", "tse lajiya maaj", "che lajya mouj", "tse lajya maaj"], note: "Roman Kashmiri spelling varies by speaker", category: "Family" },
   { id: "eat", english: "Have you eaten?", kashmiri: "تُہۍ کھٮ۪وٕا؟", latin: "Toh' khewa?", category: "Food" },
   { id: "delicious", english: "The food is delicious.", kashmiri: "بَتہٕ چھُ واریاہ مَزٕدار۔", latin: "Batta chhu vaaryah mazedaar.", category: "Food" },
   { id: "tea", english: "Would you like some tea?", kashmiri: "تۄہہِ چای چھا پَسند؟", latin: "Toh' chaay chha pasand?", category: "Food" },
 ];
 
 const categories = ["Everyday", "Affection", "Family", "Food"] as const;
+
+const normalize = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[’'.,?!،؟]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const searchableText = (phrase: Phrase) =>
+  normalize([phrase.english, phrase.kashmiri, phrase.latin, ...(phrase.aliases ?? [])].join(" "));
 
 export default function Home() {
   const [query, setQuery] = useState("");
@@ -38,6 +50,7 @@ export default function Home() {
   const [reverse, setReverse] = useState(false);
   const [saved, setSaved] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("daaman-saved");
@@ -48,24 +61,28 @@ export default function Home() {
     const clean = query.trim().toLowerCase();
     if (!clean) return phrases.filter((item) => item.category === category);
     return phrases.filter((item) =>
-      [item.english, item.kashmiri, item.latin].some((value) =>
-        value.toLowerCase().includes(clean)
-      )
+      searchableText(item).includes(normalize(clean))
     );
   }, [query, category]);
 
   const findTranslation = () => {
     if (!query.trim()) return;
-    const words = query.toLowerCase().split(/\s+/);
+    const clean = normalize(query);
+    const words = clean.split(" ").filter((word) => word.length > 1);
     const best = phrases
       .map((item) => ({
         item,
-        score: words.filter((word) =>
-          `${item.english} ${item.kashmiri} ${item.latin}`.toLowerCase().includes(word)
-        ).length,
+        score:
+          (searchableText(item).includes(clean) ? 100 : 0) +
+          words.filter((word) => searchableText(item).includes(word)).length,
       }))
       .sort((a, b) => b.score - a.score)[0];
-    if (best?.score > 0) setSelected(best.item);
+    if (best?.score > Math.max(1, words.length / 2)) {
+      setSelected(best.item);
+      setNotFound(false);
+    } else {
+      setNotFound(true);
+    }
   };
 
   const speak = (text: string, lang: string) => {
@@ -121,20 +138,23 @@ export default function Home() {
 
         <div className="translation-grid">
           <div className="input-panel">
-            <label htmlFor="phrase-input">{reverse ? "Kashmiri phrase" : "What would you like to say?"}</label>
+            <label htmlFor="phrase-input">{reverse ? "Kashmiri phrase · script or English letters" : "What would you like to say?"}</label>
             <textarea
               id="phrase-input"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={(event) => {
-                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") findTranslation();
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  findTranslation();
+                }
               }}
-              placeholder={reverse ? "کٲشُر منز لِکھِو…" : "Try “I love you” or “Have you eaten?”"}
-              dir={reverse ? "rtl" : "ltr"}
+              placeholder={reverse ? "Type Kashmiri in script or English letters…" : "Try “I love you” or “Have you eaten?”"}
+              dir="auto"
             />
             <div className="input-footer">
               <span>{query.length}/180</span>
-              <button className="translate-button" onClick={findTranslation}>Translate <kbd>⌘↵</kbd></button>
+              <button className="translate-button" onClick={findTranslation}>Translate <kbd>↵</kbd></button>
             </div>
           </div>
 
@@ -145,14 +165,24 @@ export default function Home() {
                 {saved.includes(selected.id) ? "♥" : "♡"}
               </button>
             </div>
-            <p className="kashmiri" dir="rtl">{selected.kashmiri}</p>
-            <p className="pronunciation">{selected.latin}</p>
-            <p className="meaning">{selected.english}</p>
-            {selected.note && <span className="note">✦ {selected.note}</span>}
-            <div className="result-actions">
-              <button onClick={() => speak(selected.kashmiri, "ks-IN")}>◖)) Listen</button>
-              <button onClick={copyTranslation}>{copied ? "✓ Copied" : "▣ Copy"}</button>
-            </div>
+            {notFound ? (
+              <div className="not-found" role="status">
+                <span>ROMAN KASHMIRI</span>
+                <h3>I don’t know this phrase yet.</h3>
+                <p>Daaman currently knows a growing collection of everyday phrases. Try another spelling, or send this phrase to Zaid to add its exact meaning.</p>
+              </div>
+            ) : (
+              <>
+                <p className="kashmiri" dir="rtl">{selected.kashmiri}</p>
+                <p className="pronunciation">{selected.latin}</p>
+                <p className="meaning">{selected.english}</p>
+                {selected.note && <span className="note">✦ {selected.note}</span>}
+                <div className="result-actions">
+                  <button onClick={() => speak(selected.kashmiri, "ks-IN")}>◖)) Listen</button>
+                  <button onClick={copyTranslation}>{copied ? "✓ Copied" : "▣ Copy"}</button>
+                </div>
+              </>
+            )}
           </article>
         </div>
       </section>
@@ -181,7 +211,7 @@ export default function Home() {
             <button
               key={item.id}
               className="phrase-card"
-              onClick={() => { setSelected(item); window.scrollTo({ top: 310, behavior: "smooth" }); }}
+              onClick={() => { setSelected(item); setNotFound(false); window.scrollTo({ top: 310, behavior: "smooth" }); }}
             >
               <span className="number">{String(index + 1).padStart(2, "0")}</span>
               <span className="phrase-english">{item.english}</span>
