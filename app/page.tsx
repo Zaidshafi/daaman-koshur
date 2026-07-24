@@ -68,6 +68,17 @@ export default function Home() {
 
   const findTranslation = async () => {
     if (!query.trim()) return;
+    const exact = phrases.find((item) =>
+      [item.english, item.kashmiri, item.latin, ...(item.aliases ?? [])].some(
+        (value) => normalize(value) === normalize(query),
+      ),
+    );
+    if (exact) {
+      setSelected(exact);
+      setNotFound(false);
+      return;
+    }
+
     setLoading(true);
     setNotFound(false);
 

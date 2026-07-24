@@ -86,7 +86,7 @@ export default {
         );
       }
 
-      const result = await env.AI.run("@cf/meta/llama-3.1-8b-instruct-fast", {
+      const result = await env.AI.run("@cf/google/gemma-4-26b-a4b-it", {
         messages,
         max_tokens: 180,
         temperature: 0.1,
@@ -94,6 +94,28 @@ export default {
 
       const raw =
         result?.response || result?.choices?.[0]?.message?.content || "";
+      if (direction === "toEnglish" && raw.trim()) {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        let english = raw.trim();
+        if (jsonMatch) {
+          try {
+            english = JSON.parse(jsonMatch[0]).english || english;
+          } catch {
+            // Fall back to the model's plain-text translation.
+          }
+        }
+        return Response.json(
+          {
+            kashmiri: text.trim(),
+            latin: text.trim(),
+            english: english
+              .trim()
+              .replace(/^["']|["']$/g, "")
+              .replace(/^English:\s*/i, ""),
+          },
+          { headers: { ...headers, "Cache-Control": "no-store" } },
+        );
+      }
       const match = raw.match(/\{[\s\S]*\}/);
       const translation = JSON.parse(match ? match[0] : raw);
       if (
