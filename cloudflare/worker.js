@@ -58,6 +58,26 @@ export default {
       ];
 
       if (direction !== "toEnglish") {
+        const loveName = text.trim().match(/^i\s+love\s+([a-z][a-z .'-]*)[.!?]?$/i);
+        if (loveName) {
+          const originalName = loveName[1].trim();
+          const knownNames = {
+            zain: "زین",
+            zaid: "زید",
+            ramsha: "رامشا",
+          };
+          const kashmiriName =
+            knownNames[originalName.toLowerCase()] || originalName;
+          return Response.json(
+            {
+              kashmiri: `بہٕ چھُس ${kashmiriName}س پیار کران۔`,
+              latin: `Bi chhus ${originalName}-as pyaar karaan.`,
+              english: text.trim(),
+            },
+            { headers: { ...headers, "Cache-Control": "no-store" } },
+          );
+        }
+
         const result = await env.AI.run(
           "@cf/ai4bharat/indictrans2-en-indic-1B",
           {
@@ -73,12 +93,26 @@ export default {
           result?.translations?.[0] ||
           result?.translated_text ||
           result?.translation;
-        if (!translated || typeof translated !== "string") {
+        const compact = typeof translated === "string"
+          ? translated.replace(/\s+/g, " ").trim()
+          : "";
+        const chunks = compact
+          .split(/[\/|،,؛;]+/)
+          .map((part) => part.trim())
+          .filter(Boolean);
+        const uniqueChunks = new Set(chunks);
+        const isRepetitive =
+          chunks.length >= 4 && uniqueChunks.size / chunks.length < 0.5;
+        if (
+          !compact ||
+          compact.length > Math.max(240, text.trim().length * 8) ||
+          isRepetitive
+        ) {
           throw new Error("Incomplete translation");
         }
         return Response.json(
           {
-            kashmiri: translated,
+            kashmiri: compact,
             latin: "",
             english: text.trim(),
           },

@@ -43,6 +43,17 @@ const normalize = (value: string) =>
 const searchableText = (phrase: Phrase) =>
   normalize([phrase.english, phrase.kashmiri, phrase.latin, ...(phrase.aliases ?? [])].join(" "));
 
+const isUsableTranslation = (value: unknown, inputLength: number) => {
+  if (typeof value !== "string" || !value.trim()) return false;
+  const compact = value.replace(/\s+/g, " ").trim();
+  if (compact.length > Math.max(240, inputLength * 8)) return false;
+  const chunks = compact
+    .split(/[\/|،,؛;]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return chunks.length < 4 || new Set(chunks).size / chunks.length >= 0.5;
+};
+
 export default function Home() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Phrase>(phrases[0]);
@@ -79,6 +90,30 @@ export default function Home() {
       return;
     }
 
+    if (!reverse) {
+      const loveName = query.trim().match(/^i\s+love\s+([a-z][a-z .'-]*)[.!?]?$/i);
+      if (loveName) {
+        const originalName = loveName[1].trim();
+        const knownNames: Record<string, string> = {
+          zain: "زین",
+          zaid: "زید",
+          ramsha: "رامشا",
+        };
+        const kashmiriName =
+          knownNames[originalName.toLowerCase()] || originalName;
+        setSelected({
+          id: `personal-${Date.now()}`,
+          english: query.trim(),
+          kashmiri: `بہٕ چھُس ${kashmiriName}س پیار کران۔`,
+          latin: `Bi chhus ${originalName}-as pyaar karaan.`,
+          category: "Affection",
+          note: "Personal-name form",
+        });
+        setNotFound(false);
+        return;
+      }
+    }
+
     setLoading(true);
     setNotFound(false);
 
@@ -97,6 +132,12 @@ export default function Home() {
       if (!response.ok) throw new Error("Translation unavailable");
 
       const translation = await response.json();
+      if (
+        !isUsableTranslation(translation.kashmiri, query.trim().length) ||
+        !isUsableTranslation(translation.english, query.trim().length)
+      ) {
+        throw new Error("Malformed translation");
+      }
       setSelected({
         id: `ai-${Date.now()}`,
         english: translation.english,
