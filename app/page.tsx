@@ -51,6 +51,7 @@ export default function Home() {
   const [saved, setSaved] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("daaman-saved");
@@ -65,8 +66,41 @@ export default function Home() {
     );
   }, [query, category]);
 
-  const findTranslation = () => {
+  const findTranslation = async () => {
     if (!query.trim()) return;
+    setLoading(true);
+    setNotFound(false);
+
+    try {
+      const response = await fetch(
+        "https://daaman-translate.zainnnbs.workers.dev/translate",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: query.trim(),
+            direction: reverse ? "toEnglish" : "toKashmiri",
+          }),
+        },
+      );
+      if (!response.ok) throw new Error("Translation unavailable");
+
+      const translation = await response.json();
+      setSelected({
+        id: `ai-${Date.now()}`,
+        english: translation.english,
+        kashmiri: translation.kashmiri,
+        latin: translation.latin,
+        category: "Everyday",
+        note: "AI translation · check important wording with a fluent speaker",
+      });
+      return;
+    } catch {
+      // Keep the hand-checked phrasebook available if the free AI service is busy.
+    } finally {
+      setLoading(false);
+    }
+
     const clean = normalize(query);
     const words = clean.split(" ").filter((word) => word.length > 1);
     const best = phrases
@@ -146,7 +180,7 @@ export default function Home() {
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
-                  findTranslation();
+                  void findTranslation();
                 }
               }}
               placeholder={reverse ? "Type Kashmiri in script or English letters…" : "Try “I love you” or “Have you eaten?”"}
@@ -154,7 +188,9 @@ export default function Home() {
             />
             <div className="input-footer">
               <span>{query.length}/180</span>
-              <button className="translate-button" onClick={findTranslation}>Translate <kbd>↵</kbd></button>
+              <button className="translate-button" onClick={() => void findTranslation()} disabled={loading}>
+                {loading ? "Translating…" : "Translate"} <kbd>↵</kbd>
+              </button>
             </div>
           </div>
 
@@ -174,7 +210,7 @@ export default function Home() {
             ) : (
               <>
                 <p className="kashmiri" dir="rtl">{selected.kashmiri}</p>
-                <p className="pronunciation">{selected.latin}</p>
+                {selected.latin && <p className="pronunciation">{selected.latin}</p>}
                 <p className="meaning">{selected.english}</p>
                 {selected.note && <span className="note">✦ {selected.note}</span>}
                 <div className="result-actions">
